@@ -1,0 +1,10 @@
+<launch>
+  <!-- Launch the Gazebo simulation with the UR5 robot -->
+  <include file="$(find ur5_sim_control)/launch/custom_ur5_bringup.launch"/>
+
+  <!-- Start the custom sine wave control node -->
+  <node name="sine_wave_control" pkg="ur5_sim_control" type="sine_wave_control" output="screen"/>
+
+   <!-- Start RViz to visualize the simulation using custom defined rviz config-->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find ur5_sim_control)/rviz/ur5_sim_control.rviz" />
+</launch>

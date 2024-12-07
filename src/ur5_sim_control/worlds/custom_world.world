@@ -1,0 +1,21 @@
+<sdf version="1.5">
+  <world name="custom_world">
+    <!-- Add gravity, lighting, or other world properties here -->
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+    <include>
+      <uri>model://sun</uri>
+    </include>
+    <!-- Add a table -->
+    <include>
+      <uri>model://table</uri>
+      <pose>1.5 1.5 0 0 0 0</pose>
+    </include>
+    <!-- Add a camera -->
+    <include>
+      <uri>model://camera</uri>
+      <pose>0 0 5 0 0 0</pose>
+    </include>
+  </world>
+</sdf>
