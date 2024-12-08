@@ -112,3 +112,8 @@ rosrun ur5_data_pipeline image_data_saver.py
 ```
 
 
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install src/ur5_data_pipeline/requirements.txt 
+```

@@ -1,0 +1,4 @@
+influxdb:
+  org: "Dev"
+  bucket_name: "ur5_sim_data"
+  host: "https://eu-central-1-1.aws.cloud2.influxdata.com"

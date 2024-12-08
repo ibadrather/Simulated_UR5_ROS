@@ -163,6 +163,7 @@ include_directories(
 catkin_install_python(PROGRAMS
   scripts/image_data_saver.py
   scripts/run_uuid_publisher.py
+  scripts/joint_state_data_saver.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
