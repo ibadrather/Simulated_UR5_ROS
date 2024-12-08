@@ -2,6 +2,19 @@
 
 Simulate Universal Robot UR5 Robot Arm in Gazebo and control using ROS.
 
+---
+
+### UR5 Joint Limits
+
+| Joint Name | Min Position (°) | Max Position (°) | Max Velocity (°/s) | Max Effort (Nm) | 
+| --- | --- | --- | --- | --- | 
+| Shoulder Pan | -360.0 | 360.0 | 180.0 | 150.0 | 
+| Shoulder Lift | -360.0 | 360.0 | 180.0 | 150.0 | 
+| Elbow Joint | -180.0 | 180.0 | 180.0 | 150.0 | 
+| Wrist 1 | -360.0 | 360.0 | 180.0 | 28.0 | 
+| Wrist 2 | -360.0 | 360.0 | 180.0 | 28.0 | 
+| Wrist 3 | -360.0 | 360.0 | 180.0 | 28.0 | 
+
 To start:
 
 ```bash
@@ -82,16 +95,20 @@ roslaunch ur5_sim_control ur5_sine_wave_control.launch
 
 ---
 
-### UR5 Joint Limits
+## Data Pipeline
 
-| Joint Name | Min Position (°) | Max Position (°) | Max Velocity (°/s) | Max Effort (Nm) | 
-| --- | --- | --- | --- | --- | 
-| Shoulder Pan | -360.0 | 360.0 | 180.0 | 150.0 | 
-| Shoulder Lift | -360.0 | 360.0 | 180.0 | 150.0 | 
-| Elbow Joint | -180.0 | 180.0 | 180.0 | 150.0 | 
-| Wrist 1 | -360.0 | 360.0 | 180.0 | 28.0 | 
-| Wrist 2 | -360.0 | 360.0 | 180.0 | 28.0 | 
-| Wrist 3 | -360.0 | 360.0 | 180.0 | 28.0 | 
+```bash
+cd src
+catkin_create_pkg ur5_data_pipeline rospy sensor_msgs cv_bridge std_msgs
+cd ..
+catkin_make
+source devel/setup.bash
+```
 
 
----
+```bash
+chmod +x src/ur5_data_pipeline/scripts/image_data_saver.py
+rosrun ur5_data_pipeline image_data_saver.py
+```
+
+

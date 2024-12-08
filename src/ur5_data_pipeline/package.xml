@@ -1,13 +1,14 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>ur5_sim_control</name>
+  <name>ur5_data_pipeline</name>
   <version>0.0.0</version>
-  <description>The ur5_sim_control package</description>
+  <description>The ur5_data_pipeline package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
   <!-- <maintainer email="jane.doe@example.com">Jane Doe</maintainer> -->
-    <maintainer email="ibad.rather.ir@gmail.com">Ibad Rather</maintainer>
+  <maintainer email="ibad.rather.ir@gmail.com">Ibad Rather</maintainer>
+
 
   <!-- One license tag required, multiple allowed, one license per tag -->
   <!-- Commonly used license strings: -->
@@ -18,7 +19,7 @@
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
   <!-- Optional attribute type can be: website, bugtracker, or repository -->
   <!-- Example: -->
-  <!-- <url type="website">http://wiki.ros.org/ur5_sim_control</url> -->
+  <!-- <url type="website">http://wiki.ros.org/ur5_data_pipeline</url> -->
 
 
   <!-- Author tags are optional, multiple are allowed, one per tag -->
@@ -48,13 +49,18 @@
   <!-- Use doc_depend for packages you need only for building documentation: -->
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>roscpp</build_depend>
+  <build_depend>cv_bridge</build_depend>
+  <build_depend>rospy</build_depend>
   <build_depend>sensor_msgs</build_depend>
   <build_depend>std_msgs</build_depend>
-  <build_export_depend>roscpp</build_export_depend>
+  <build_export_depend>cv_bridge</build_export_depend>
+  <build_export_depend>rospy</build_export_depend>
   <build_export_depend>sensor_msgs</build_export_depend>
   <build_export_depend>std_msgs</build_export_depend>
-  <exec_depend>roscpp</exec_depend>
+  <build_depend>python3</build_depend>
+  <exec_depend>python3</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>rospy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
 
