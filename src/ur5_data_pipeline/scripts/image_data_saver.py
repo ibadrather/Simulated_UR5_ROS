@@ -19,10 +19,9 @@ from pathlib import Path
 import rospy
 import json
 from sensor_msgs.msg import Image, CameraInfo
+from std_msgs.msg import String
 from cv_bridge import CvBridge
 import cv2
-from typing import Any, Dict
-import uuid
 import time
 
 class ImageDataSaver:
@@ -41,29 +40,27 @@ class ImageDataSaver:
         frame_rate (float): Frame rate calculated from timestamp differences.
     """
     def __init__(self, base_dir: str = "~/runs") -> None:
-        # Setup paths using pathlib
-        self.run_id: str = str(uuid.uuid4())
-        self.base_dir: Path = Path(base_dir).expanduser()
-        self.image_data_dir: Path = self.base_dir / self.run_id / "image_data" / "images"
-        self.metadata_path: Path = self.base_dir / self.run_id / "image_data" / "metadata.json"
-
-        # Create directories
-        self.image_data_dir.mkdir(parents=True, exist_ok=True)
-
-        # Initialize metadata
-        self.metadata: Dict[str, Any] = {
-            "run_uuid": self.run_id,
-            "camera_info": {},
-            "images": [],
-            "start_time": time.time(),
-            "end_time": None,
-            "frame_rate": None
-        }
-        self.bridge: CvBridge = CvBridge()
+        self.run_id = None  # Placeholder for the UUID
+        self.base_dir = Path(base_dir).expanduser()
+        self.image_data_dir = None
+        self.metadata_path = None
+        self.metadata = None
+        self.bridge = CvBridge()
 
         self.image_counter = 0
         self.last_timestamp = None
         self.frame_rate = 0
+
+        # Subscribe to the UUID topic
+        rospy.Subscriber("/run_uuid", String, self.uuid_callback)
+        
+        # Wait until UUID is received
+        rospy.loginfo("Waiting for UUID...")
+        while self.run_id is None and not rospy.is_shutdown():
+            rospy.sleep(0.1)
+        
+        rospy.loginfo(f"Received UUID: {self.run_id}")
+        self._setup_directories_and_metadata()
 
         # ROS Subscribers
         rospy.Subscriber("/camera/image_raw", Image, self.image_callback)
@@ -71,6 +68,27 @@ class ImageDataSaver:
 
         # Register shutdown callback
         rospy.on_shutdown(self.shutdown)
+    
+    def uuid_callback(self, msg: String):
+        self.run_id = msg.data
+
+    def _setup_directories_and_metadata(self):
+        # Setup paths using pathlib
+        self.image_data_dir = self.base_dir / self.run_id / "image_data" / "images"
+        self.metadata_path = self.base_dir / self.run_id / "image_data" / "metadata.json"
+        
+        # Create directories
+        self.image_data_dir.mkdir(parents=True, exist_ok=True)
+
+        # Initialize metadata
+        self.metadata = {
+            "run_uuid": self.run_id,
+            "camera_info": {},
+            "images": [],
+            "start_time": time.time(),
+            "end_time": None,
+            "frame_rate": None
+        }
 
     def image_callback(self, msg: Image) -> None:
         try:
