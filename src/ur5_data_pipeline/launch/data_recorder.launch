@@ -7,8 +7,8 @@
     <node name="image_data_saver" pkg="ur5_data_pipeline" type="image_data_saver.py" output="screen" />
 
     <!-- Joint State Data Saver -->
-    <node name="joint_state_saver" pkg="ur5_data_pipeline" type="joint_state_data_saver.py"
+    <node name="joint_state_data_saver" pkg="ur5_data_pipeline" type="joint_state_data_saver.py"
         output="screen">
-        <!-- <param name="config_path" value="$(find ur5_data_pipeline)/config/influxdb_config.yaml" /> -->
+        <param name="influxdb_config_path" value="$(find ur5_data_pipeline)/config/influxdb_config.yaml" />
     </node>
 </launch>

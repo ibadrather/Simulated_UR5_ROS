@@ -1,7 +1,6 @@
 import rospy
 from sqlalchemy import create_engine, Column, Integer, String, Float
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 from influxdb_client_3 import InfluxDBClient3, Point
 
 # Configuration for InfluxDB
@@ -40,7 +39,7 @@ class DatabaseSaver:
             self.bucket_name = BUCKET_NAME
         else:
             # Set up SQLite using SQLAlchemy
-            self.engine = create_engine(f"sqlite:///{sqlite_db_path}/ur5_sim_data.db", echo=True)
+            self.engine = create_engine(f"sqlite:///{sqlite_db_path}", echo=True)
             Base.metadata.create_all(self.engine)
             Session = sessionmaker(bind=self.engine)
             self.session = Session()
@@ -90,4 +89,3 @@ class DatabaseSaver:
         """
         if not self.use_influxdb:
             self.session.close()
-
