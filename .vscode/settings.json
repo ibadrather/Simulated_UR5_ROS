@@ -6,5 +6,9 @@
     "python.analysis.extraPaths": [
         "/home/edreate/Desktop/Simulated_UR5_ROS/devel/lib/python3/dist-packages",
         "/opt/ros/noetic/lib/python3/dist-packages"
-    ]
+    ],
+    "files.associations": {
+        "unordered_map": "cpp",
+        "unordered_set": "cpp"
+    }
 }

@@ -123,7 +123,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 print("#"*50)
 print(os.path.dirname(os.path.abspath(__file__)))
 
-from DataBaseSaver import DatabaseSaver
+from ur5_data_pipeline.scripts.DatabaseSaver import DatabaseSaver
+
 
 
 def load_influxdb_config():

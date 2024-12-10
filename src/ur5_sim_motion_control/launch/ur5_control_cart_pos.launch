@@ -1,0 +1,13 @@
+<launch>
+  <!-- Set the GAZEBO_MODEL_PATH -->
+  <env name="GAZEBO_MODEL_PATH" value="$GAZEBO_MODEL_PATH:$(find ur5_sim_control)/worlds" />
+
+  <!-- Launch the Gazebo simulation with the UR5 robot -->
+  <include file="$(find ur5_sim_control)/launch/custom_ur5_bringup.launch"/>
+
+  <!-- Start RViz to visualize the simulation using custom defined rviz config-->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find ur5_sim_control)/rviz/ur5_sim_control.rviz" />
+
+  <!-- Start the cartesian position control node -->
+  <node name="ur5_sim_motion_control_node" pkg="ur5_sim_motion_control" type="ur5_sim_motion_control_node" output="screen"/>
+</launch>
