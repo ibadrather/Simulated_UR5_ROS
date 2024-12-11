@@ -120,3 +120,9 @@ pip install src/ur5_data_pipeline/requirements.txt
 
 rostopic pub /target_pose geometry_msgs/Pose "{position: {x: 0.5, y: 0.5, z: 0.5}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}"
 rosrun ur5_motion_control_api motion_control_api.py
+
+
+sudo apt-get update
+sudo apt-get install ros-noetic-kdl-parser-py
+sudo apt-get install ros-noetic-orocos-kdl
+sudo apt-get install ros-noetic-python-orocos-kdl
