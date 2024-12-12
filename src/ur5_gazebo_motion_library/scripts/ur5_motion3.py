@@ -89,6 +89,10 @@ class UR5MotionNode:
         # Initial pose
         # For simplicity, assume a known initial joint configuration or wait until we get it from joint states
         self.current_pose = Pose()
+        self.current_pose.position.x = 0.4
+        self.current_pose.position.y = -0.6
+        self.current_pose.position.z = 0.1
+        self.current_pose.orientation.w = 1.0
         self.initialized = False
 
         # Publishers and Subscribers
