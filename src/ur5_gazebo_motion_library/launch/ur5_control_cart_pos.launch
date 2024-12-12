@@ -9,5 +9,5 @@
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find ur5_sim_control)/rviz/ur5_sim_control.rviz" />
 
   <!-- Start the Cartesian position control node -->
-  <node name="ur5_motion_node" pkg="ur5_gazebo_motion_library" type="ur5_motion_node" output="screen" />
+  <!-- <node name="ur5_motion_node" pkg="ur5_gazebo_motion_library" type="ur5_motion_node" output="screen" /> -->
 </launch>
