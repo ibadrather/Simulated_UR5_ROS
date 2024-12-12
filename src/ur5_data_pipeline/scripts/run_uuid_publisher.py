@@ -24,6 +24,7 @@ import rospy
 from std_msgs.msg import String
 import uuid
 
+
 def uuid_publisher():
     """
     Initializes the ROS node, generates a unique UUID, and publishes it to the `/run_uuid` topic.
@@ -46,6 +47,7 @@ def uuid_publisher():
     while not rospy.is_shutdown():
         pub.publish(run_uuid)
         rate.sleep()
+
 
 if __name__ == "__main__":
     try:

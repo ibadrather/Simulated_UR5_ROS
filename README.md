@@ -129,26 +129,21 @@ sudo apt-get install ros-noetic-python-orocos-kdl
 
 
 
+Dependency
+ros-noetic
+python 3.8
+black
+
+python3 -m black src/ --line-length 120
 
 
 source devel/setup.bash
-roslaunch ur5_gazebo_motion_library ur5_control_cart_pos.launch
+roslaunch ur5_gazebo_motion_library ur5_motion_control.launch
 
 
 source devel/setup.bash
-rosrun ur5_gazebo_motion_library ur5_motion3.py
+rosrun ur5_gazebo_motion_library ur5_joint_motion_API.py
 
 
 source devel/setup.bash
-rosrun ur5_gazebo_motion_library ur5_target_pose.py
-
-
-
-
-
-[INFO] [1734021122.130758, 510.786000]: End Effector Position: x=0.44, y=0.23, z=0.38
-Orientation (quaternion): x=0.51, y=-0.39, z=-0.47, w=0.61
-
-
-[INFO] [1734021170.474416, 557.991000]: End Effector Position: x=0.21, y=0.35, z=0.47
-Orientation (quaternion): x=0.21, y=0.82, z=-0.45, w=-0.28
+rosrun ur5_gazebo_motion_library ur5_linear_motion_API.py

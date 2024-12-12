@@ -6,114 +6,24 @@ from PyKDL import ChainFkSolverPos_recursive, ChainIkSolverPos_LMA, JntArray
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import JointState
-import numpy as np
-import PyKDL as KDL
 from typing import List
 
-
-JOINT_NAMES = [
-    "shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
-    "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"
-]
+import os
+import sys
 
 
-def create_pose(x: float, y: float, z: float, w: float, wx: float, wy: float, wz: float) -> Pose:
-    pose = Pose()
-    pose.position.x = x
-    pose.position.y = y
-    pose.position.z = z
-    pose.orientation.w = w
-    pose.orientation.x = wx
-    pose.orientation.y = wy
-    pose.orientation.z = wz
-    return pose
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
-def pose_to_kdl_frame(pose: Pose) -> KDL.Frame:
-    return KDL.Frame(
-        KDL.Rotation.Quaternion(
-            pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w
-        ),
-        KDL.Vector(pose.position.x, pose.position.y, pose.position.z)
-    )
+from utils import JOINT_NAMES, create_pose
+from cartesian_space import (
+    parametrize_trajectory,
+    pose_to_kdl_frame,
+    interpolate_poses,
+)
 
 
-def interpolate_poses(start: Pose, end: Pose, steps: int) -> List[Pose]:
-    waypoints = []
-    for t in np.linspace(0, 1, steps):
-        interp_pose = Pose()
-        interp_pose.position.x = (1 - t) * start.position.x + t * end.position.x
-        interp_pose.position.y = (1 - t) * start.position.y + t * end.position.y
-        interp_pose.position.z = (1 - t) * start.position.z + t * end.position.z
-        interp_pose.orientation = start.orientation  # Keeping orientation constant for simplicity
-        waypoints.append(interp_pose)
-    return waypoints
-
-
-def distance_between_poses(p1: Pose, p2: Pose) -> float:
-    dx = p2.position.x - p1.position.x
-    dy = p2.position.y - p1.position.y
-    dz = p2.position.z - p1.position.z
-    return np.sqrt(dx*dx + dy*dy + dz*dz)
-
-
-def parametrize_trajectory(waypoints: List[Pose], linear_vel: float, linear_acc: float):
-    # Same parameterization logic as previously shown
-    start_pose = waypoints[0]
-    end_pose = waypoints[-1]
-    D = distance_between_poses(start_pose, end_pose)
-
-    if D < 1e-6:
-        times = [rospy.Duration(0) for _ in waypoints]
-        velocities = [0.0 for _ in waypoints]
-        accelerations = [0.0 for _ in waypoints]
-        return times, velocities, accelerations
-
-    D_acc = (linear_vel**2) / (2*linear_acc)
-
-    if D < 2*D_acc:
-        # Triangle profile
-        total_time = np.sqrt(D/linear_acc)*2
-        distances = np.linspace(0, D, len(waypoints))
-        times = []
-        for dist in distances:
-            half_T = total_time/2
-            if dist <= D/2:
-                t = np.sqrt((2*dist)/linear_acc)
-            else:
-                t = total_time - np.sqrt(2*(D-dist)/linear_acc)
-            times.append(rospy.Duration(t))
-        times_float = [t.to_sec() for t in times]
-        velocities = np.gradient(distances, times_float)
-        accelerations = np.gradient(velocities, times_float)
-        return times, velocities, accelerations
-    else:
-        # Trapezoidal profile
-        T_a = linear_vel/linear_acc
-        D_a = D_acc
-        D_c = D - 2*D_a
-        if D_c < 0:
-            D_c = 0
-        T_c = D_c/linear_vel
-        total_time = 2*T_a + T_c
-        distances = np.linspace(0, D, len(waypoints))
-        times = []
-        for dist in distances:
-            if dist <= D_a:
-                t = np.sqrt(2*dist/linear_acc)
-            elif dist <= (D_a + D_c):
-                t = T_a + (dist - D_a)/linear_vel
-            else:
-                dist_end = D - dist
-                t = total_time - np.sqrt(2*dist_end/linear_acc)
-            times.append(rospy.Duration(t))
-        times_float = [t.to_sec() for t in times]
-        velocities = np.gradient(distances, times_float)
-        accelerations = np.gradient(velocities, times_float)
-        return times, velocities, accelerations
-
-
-class UR5MotionAPI:
+class UR5LinearMotionAPI:
     def __init__(self):
         # Initialize ROS components
         robot_description = rospy.get_param("robot_description")
@@ -136,9 +46,7 @@ class UR5MotionAPI:
         rospy.Subscriber("/joint_states", JointState, self.joint_states_callback)
 
         # You might keep a publisher for executing trajectories here
-        self.trajectory_pub = rospy.Publisher(
-            "/eff_joint_traj_controller/command", JointTrajectory, queue_size=10
-        )
+        self.trajectory_pub = rospy.Publisher("/eff_joint_traj_controller/command", JointTrajectory, queue_size=10)
 
     def initialize_kdl_solvers(self, robot_description: str, base_link: str, end_effector_link: str):
         ok, tree = kdl_parser_py.urdf.treeFromString(robot_description)
@@ -171,7 +79,9 @@ class UR5MotionAPI:
             joint_trajectory.append([waypoint_joints[i] for i in range(self.num_joints)])
         return joint_trajectory
 
-    def generate_cartesian_trajectory(self, start_pose: Pose, end_pose: Pose, linear_vel: float, linear_acc: float, steps: int = 200) -> JointTrajectory:
+    def generate_cartesian_trajectory(
+        self, start_pose: Pose, end_pose: Pose, linear_vel: float, linear_acc: float, steps: int = 200
+    ) -> JointTrajectory:
         # Interpolate and solve IK
         waypoints = interpolate_poses(start_pose, end_pose, steps)
         joint_trajectory = self.calculate_joint_trajectory(waypoints)
@@ -205,17 +115,17 @@ class UR5MotionAPI:
 
 
 def main():
-    rospy.init_node("ur5_motion_api_node")
+    rospy.init_node("ur5_linear_motion_API_node")
 
     # Create the API object
-    ur5_api = UR5MotionAPI()
+    ur5_api = UR5LinearMotionAPI()
 
     # Define start and end poses and parameters externally
     # In a real scenario, these could come from another script or user input
     start_pose = create_pose(0.3, 0.6, 0.1, 1.0, 0.0, 0.0, 0.0)
     end_pose = create_pose(0.3, -0.6, 0.1, 1.0, 0.0, 0.0, 0.0)
-    linear_vel = 0.9     # user-specified linear velocity
-    linear_acc = 0.3    # user-specified linear acceleration
+    linear_vel = 0.9  # user-specified linear velocity
+    linear_acc = 0.3  # user-specified linear acceleration
 
     rospy.sleep(1)  # Ensure subscriber is ready and we have joint states
 

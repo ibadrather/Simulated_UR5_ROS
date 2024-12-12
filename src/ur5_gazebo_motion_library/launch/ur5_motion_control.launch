@@ -6,7 +6,7 @@
   <include file="$(find ur5_sim_control)/launch/custom_ur5_bringup.launch"/>
 
   <!-- Start RViz to visualize the simulation using custom defined rviz config-->
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find ur5_sim_control)/rviz/ur5_sim_control.rviz" />
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find ur5_gazebo_motion_library)/rviz/config.rviz" />
 
   <!-- Start the Cartesian position control node -->
   <!-- <node name="ur5_motion_node" pkg="ur5_gazebo_motion_library" type="ur5_motion_node" output="screen" /> -->

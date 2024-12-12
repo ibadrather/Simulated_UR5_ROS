@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 
 
-
-
-
-
 #############################################################################
 #############################################################################
 #############################################################################
-
 
 
 # import rospy
@@ -33,7 +28,7 @@
 #     SQLAlchemy model to represent the joint state data in SQLite.
 #     """
 #     __tablename__ = 'joint_states'
-    
+
 #     id = Column(Integer, primary_key=True, autoincrement=True)
 #     joint_name = Column(String)
 #     position = Column(Float)
@@ -120,11 +115,10 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-print("#"*50)
+print("#" * 50)
 print(os.path.dirname(os.path.abspath(__file__)))
 
 from ur5_data_pipeline.scripts.DatabaseSaver import DatabaseSaver
-
 
 
 def load_influxdb_config():
@@ -134,15 +128,15 @@ def load_influxdb_config():
     try:
         config_path = rospy.get_param("~influxdb_config_path")
         rospy.loginfo(f"Loading InfluxDB config from: {config_path}")
-        
-        with open(config_path, 'r') as file:
+
+        with open(config_path, "r") as file:
             config = yaml.safe_load(file)
-        
+
         influx_config = config.get("influxdb")
         if not influx_config:
             rospy.logerr("InfluxDB configuration not found in the YAML file.")
             raise ValueError("InfluxDB configuration missing.")
-        
+
         return influx_config
     except Exception as e:
         rospy.logerr(f"Failed to load InfluxDB config: {e}")
@@ -151,35 +145,33 @@ def load_influxdb_config():
 
 class UR5JointStateSaver:
     def __init__(self, use_influxdb: bool, base_dir: str = "~/runs"):
-        
+
         self.run_id = None  # Placeholder for the UUID
         self.base_dir = Path(base_dir).expanduser()
 
         # Subscribe to the UUID topic
         rospy.Subscriber("/run_uuid", String, self.uuid_callback)
-        
+
         # Wait until UUID is received
         rospy.loginfo("Waiting for UUID...")
         while self.run_id is None and not rospy.is_shutdown():
             rospy.sleep(0.1)
         rospy.loginfo(f"Received UUID: {self.run_id}")
-        
+
         # Determine save path for SQLite DB
         self.database_save_path = self.base_dir / self.run_id / "joint_state_data.db"
 
         rospy.loginfo(f"Received UUID: {self.run_id}")
-
 
         if use_influxdb:
             rospy.loginfo("Saving UR5 Joint State Data to InfluxDB...")
         else:
             rospy.loginfo(f"Saving UR5 Joint State Data to SQLite: {self.database_save_path}")
 
-
-
         # Initialize DatabaseSaver
-        self.database_saver = DatabaseSaver(use_influxdb=use_influxdb, run_uuid=self.run_id, sqlite_db_path=str(self.database_save_path))
-
+        self.database_saver = DatabaseSaver(
+            use_influxdb=use_influxdb, run_uuid=self.run_id, sqlite_db_path=str(self.database_save_path)
+        )
 
         # Subscribe to joint states topic
         rospy.Subscriber("/joint_states", JointState, self.joint_state_callback)
@@ -190,17 +182,17 @@ class UR5JointStateSaver:
     def uuid_callback(self, msg: String):
         """
         Callback to receive the UUID from the `/run_uuid` topic.
-        
+
         Args:
             msg (String): The UUID message.
         """
         self.run_id = msg.data
         rospy.loginfo(f"Received UUID: {self.run_id}")
-    
+
     def joint_state_callback(self, msg: JointState):
         """
         Callback function for the `/joint_states` topic.
-        
+
         Args:
             msg (JointState): The message from the `/joint_states` topic.
         """

@@ -15,12 +15,14 @@ client = InfluxDBClient3(host=HOST, token=TOKEN, org=ORG)
 # Define base for SQLAlchemy models
 Base = declarative_base()
 
+
 class JointState(Base):
     """
     SQLAlchemy model to represent the joint state data in SQLite.
     """
-    __tablename__ = 'joint_states'
-    
+
+    __tablename__ = "joint_states"
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     joint_name = Column(String)
     position = Column(Float)
@@ -28,14 +30,13 @@ class JointState(Base):
     effort = Column(Float)
     timestamp = Column(Float)
 
+
 class DatabaseSaver:
-    def __init__(self, sqlite_db_path: str, run_uuid:str, use_influxdb=False):
+    def __init__(self, sqlite_db_path: str, run_uuid: str, use_influxdb=False):
         self.use_influxdb = use_influxdb
         self.run_uuid = run_uuid
         if self.use_influxdb:
-            self.client = InfluxDBClient3(
-                host=HOST, token=TOKEN, org=ORG
-            )
+            self.client = InfluxDBClient3(host=HOST, token=TOKEN, org=ORG)
             self.bucket_name = BUCKET_NAME
         else:
             # Set up SQLite using SQLAlchemy
@@ -74,7 +75,7 @@ class DatabaseSaver:
                         position=joint_states.position[i],
                         velocity=joint_states.velocity[i],
                         effort=joint_states.effort[i],
-                        timestamp=timestamp
+                        timestamp=timestamp,
                     )
                     self.session.add(joint_state)
             self.session.commit()

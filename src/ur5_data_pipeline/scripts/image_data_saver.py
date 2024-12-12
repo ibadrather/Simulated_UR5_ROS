@@ -24,6 +24,7 @@ from cv_bridge import CvBridge
 import cv2
 import time
 
+
 class ImageDataSaver:
     """
     ROS node to save images and log metadata from Gazebo camera.
@@ -39,6 +40,7 @@ class ImageDataSaver:
         last_timestamp (float): Timestamp of the last image.
         frame_rate (float): Frame rate calculated from timestamp differences.
     """
+
     def __init__(self, base_dir: str = "~/runs") -> None:
         self.run_id = None  # Placeholder for the UUID
         self.base_dir = Path(base_dir).expanduser()
@@ -53,12 +55,12 @@ class ImageDataSaver:
 
         # Subscribe to the UUID topic
         rospy.Subscriber("/run_uuid", String, self.uuid_callback)
-        
+
         # Wait until UUID is received
         rospy.loginfo("Waiting for UUID...")
         while self.run_id is None and not rospy.is_shutdown():
             rospy.sleep(0.1)
-        
+
         rospy.loginfo(f"Received UUID: {self.run_id}")
         self._setup_directories_and_metadata()
 
@@ -68,7 +70,7 @@ class ImageDataSaver:
 
         # Register shutdown callback
         rospy.on_shutdown(self.shutdown)
-    
+
     def uuid_callback(self, msg: String):
         self.run_id = msg.data
 
@@ -76,7 +78,7 @@ class ImageDataSaver:
         # Setup paths using pathlib
         self.image_data_dir = self.base_dir / self.run_id / "image_data" / "images"
         self.metadata_path = self.base_dir / self.run_id / "image_data" / "metadata.json"
-        
+
         # Create directories
         self.image_data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -87,7 +89,7 @@ class ImageDataSaver:
             "images": [],
             "start_time": time.time(),
             "end_time": None,
-            "frame_rate": None
+            "frame_rate": None,
         }
 
     def image_callback(self, msg: Image) -> None:
@@ -127,7 +129,7 @@ class ImageDataSaver:
                 "width": msg.width,
                 "height": msg.height,
                 "distortion_model": msg.distortion_model,
-                "K": msg.K
+                "K": msg.K,
             }
             with self.metadata_path.open("w") as f:
                 json.dump(self.metadata, f, indent=4)
@@ -140,14 +142,15 @@ class ImageDataSaver:
         # Save the final metadata
         with self.metadata_path.open("w") as f:
             json.dump(self.metadata, f, indent=4)
-        
+
         rospy.loginfo("Shutdown complete. Metadata saved.")
+
 
 if __name__ == "__main__":
     run_data_saver_path = Path("/home/edreate/Desktop/Simulated_UR5_ROS/runs")
-    
+
     rospy.init_node("image_data_saver")
     saver = ImageDataSaver(run_data_saver_path)
     rospy.loginfo("Image data saver node started.")
-    
+
     rospy.spin()

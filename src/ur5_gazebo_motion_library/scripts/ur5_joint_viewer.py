@@ -6,6 +6,7 @@ from collections import deque
 import matplotlib.pyplot as plt
 import time
 
+
 class JointStatePlotter:
     def __init__(self, buffer_size=100):
         self.buffer_size = buffer_size
@@ -59,6 +60,7 @@ def main():
 
     # Save and display the plot after 30 seconds
     jsp.save_and_plot()
+
 
 if __name__ == "__main__":
     main()
