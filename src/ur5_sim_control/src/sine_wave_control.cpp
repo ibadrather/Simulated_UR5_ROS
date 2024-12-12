@@ -5,7 +5,7 @@
 #include <cmath>
 #include <vector>
 
-// Constants for joint names and loop frequency
+// Constants for joint names
 const std::vector<std::string> JOINT_NAMES = {
     "shoulder_pan_joint",
     "shoulder_lift_joint",
@@ -14,23 +14,37 @@ const std::vector<std::string> JOINT_NAMES = {
     "wrist_2_joint",
     "wrist_3_joint"
 };
-const double LOOP_RATE_HZ = 10.0; // 10 Hz
+const double LOOP_RATE_HZ = 50.0; // Higher frequency for smoother control
+
+// Parameters for sine wave generation
+struct SineWaveParams {
+    double amplitude;
+    double frequency;
+    double phase;
+};
+
+// Initialize sine wave parameters for each joint
+std::vector<SineWaveParams> sine_params = {
+    {1.0, 1.0, 0.0},  // shoulder_pan_joint
+    {1.0, 1.0, M_PI / 2}, // shoulder_lift_joint
+    {1.0, 1.0, M_PI},     // elbow_joint
+    {1.0, 1.0, M_PI / 4}, // wrist_1_joint
+    {1.0, 1.0, 3 * M_PI / 4}, // wrist_2_joint
+    {1.0, 1.0, M_PI / 2}  // wrist_3_joint
+};
 
 /**
- * Generate joint positions based on sine and cosine waves.
+ * Generate joint positions based on sine waves.
+ * @param time_now The current time in seconds.
  * @return A vector of joint positions.
  */
-std::vector<double> generateJointPositions()
+std::vector<double> generateJointPositions(double time_now)
 {
-    double time_now = ros::Time::now().toSec();
-    return {
-        std::sin(time_now),  // shoulder_pan_joint
-        std::cos(time_now),  // shoulder_lift_joint
-        std::sin(time_now),  // elbow_joint
-        std::cos(time_now),  // wrist_1_joint
-        std::sin(time_now),  // wrist_2_joint
-        std::cos(time_now)   // wrist_3_joint
-    };
+    std::vector<double> positions;
+    for (const auto& param : sine_params) {
+        positions.push_back(param.amplitude * std::sin(2 * M_PI * param.frequency * time_now + param.phase));
+    }
+    return positions;
 }
 
 int main(int argc, char** argv)
@@ -56,8 +70,11 @@ int main(int argc, char** argv)
 
     while (ros::ok())
     {
+        // Get the current time
+        double time_now = ros::Time::now().toSec();
+
         // Generate joint positions based on sine wave
-        point.positions = generateJointPositions();
+        point.positions = generateJointPositions(time_now);
 
         // Clear and update trajectory points
         joint_trajectory.points.clear();
