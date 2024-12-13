@@ -1,5 +1,32 @@
 # UR5MotionAPI Documentation 
+
 This documentation provides detailed instructions on using the `UR5JointMotionAPI` and `UR5LinearMotionAPI` classes to control the UR5 robot in both joint and Cartesian spaces.
+
+The primary goal of the package is to provide a high-level interface for motion planning and control of the UR5 robot in simulation. The APIs enable seamless integration with ROS for tasks like joint trajectory execution, Cartesian path planning, and data visualization.
+
+## Structure Overview
+
+The package is organized as follows:
+
+```bash
+src/ur5_gazebo_motion_library/
+├── CMakeLists.txt
+├── include
+│   └── ur5_gazebo_motion_library
+├── launch
+│   └── ur5_motion_control.launch
+├── package.xml
+├── rviz
+│   └── config.rviz
+└── scripts
+    ├── cartesian_space.py
+    ├── joint_space.py
+    ├── position_data_plotter.py
+    ├── ur5_joint_motion_API.py
+    ├── ur5_joint_viewer.py
+    ├── ur5_linear_motion_API.py
+    └── utils.py
+```
 
 ---
 

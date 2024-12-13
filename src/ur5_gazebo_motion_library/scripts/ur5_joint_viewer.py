@@ -455,7 +455,7 @@ def main() -> None:
     plot_duration = 30
 
     plotter = JointStatePlotter(buffer_size=buffer_size)
-    plotter.save_plots = False
+    plotter.save_plots = True
     rate = rospy.Rate(50)  # 50 Hz
     start_time = time.time()
 
