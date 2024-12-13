@@ -1,6 +1,7 @@
 runs/
 .venv
-
+output_data
+*.png
 devel/
 logs/
 build/

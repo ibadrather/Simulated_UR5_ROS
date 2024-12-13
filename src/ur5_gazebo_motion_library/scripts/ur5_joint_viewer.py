@@ -11,6 +11,9 @@ import time
 import PyKDL as KDL
 import kdl_parser_py.urdf
 from datetime import datetime
+import csv
+import os
+
 # Constants
 JOINT_NAMES = [
     "shoulder_pan_joint",
@@ -28,7 +31,7 @@ END_EFFECTOR_LINK = "wrist_3_link"
 class JointStatePlotter:
     """
     A ROS node that subscribes to joint states, computes forward kinematics to obtain
-    the end-effector's pose, buffers joint positions, velocities, accelerations and 
+    the end-effector's pose, buffers joint positions, velocities, accelerations and
     end-effector positions, velocities, accelerations, and plots them over time.
     """
 
@@ -41,10 +44,15 @@ class JointStatePlotter:
             buffer_size (int, optional): Maximum number of data points to buffer for each joint and end-effector position. Defaults to 1000.
         """
         self.buffer_size: int = buffer_size
+        self.save_plots = False
         # Buffers for Joint Data
         self.joint_positions: Dict[str, Deque[float]] = {joint: deque(maxlen=self.buffer_size) for joint in JOINT_NAMES}
-        self.joint_velocities: Dict[str, Deque[float]] = {joint: deque(maxlen=self.buffer_size) for joint in JOINT_NAMES}
-        self.joint_accelerations: Dict[str, Deque[float]] = {joint: deque(maxlen=self.buffer_size) for joint in JOINT_NAMES}
+        self.joint_velocities: Dict[str, Deque[float]] = {
+            joint: deque(maxlen=self.buffer_size) for joint in JOINT_NAMES
+        }
+        self.joint_accelerations: Dict[str, Deque[float]] = {
+            joint: deque(maxlen=self.buffer_size) for joint in JOINT_NAMES
+        }
 
         # Buffers for End-Effector positions
         self.ee_x: Deque[float] = deque(maxlen=self.buffer_size)
@@ -76,7 +84,7 @@ class JointStatePlotter:
         self.initialize_kdl_solvers()
 
         # Dating Timestamp
-        self.naming_timestamp = datetime.now().strftime('%y-%m-%d %a %H:%M:%S')
+        self.naming_timestamp = datetime.now().strftime("%y-%m-%d %a %H:%M:%S")
 
         # Initialize ROS subscriber for joint states
         rospy.Subscriber("/joint_states", JointState, self.joint_state_callback)
@@ -114,10 +122,10 @@ class JointStatePlotter:
     def compute_derivatives(self, data: Deque[float], times: Deque[float]) -> Optional[Tuple[float, float]]:
         """
         Compute velocity and acceleration given a deque of data and corresponding times.
-        
+
         Velocity is computed as the finite difference of the last two points.
         Acceleration is computed as the finite difference of the last two velocities.
-        
+
         Returns:
             (velocity, acceleration) if enough data points exist, otherwise None.
         """
@@ -270,7 +278,9 @@ class JointStatePlotter:
             else:
                 rospy.logerr("Forward Kinematics computation failed.")
 
-    def plot_joint_data(self, timestamps: List[float], data_dict: Dict[str, List[float]], title_prefix: str, ylabel: str, filename: str) -> None:
+    def plot_joint_data(
+        self, timestamps: List[float], data_dict: Dict[str, List[float]], title_prefix: str, ylabel: str, filename: str
+    ) -> None:
         """
         Create a figure with subplots for each joint, plotting the given data (positions/velocities/accelerations).
 
@@ -294,14 +304,24 @@ class JointStatePlotter:
         axes[-1].set_xlabel("Time (s)")
 
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-        plt.savefig(filename+ "_" + self.naming_timestamp + ".png", dpi=300)
+        if self.save_plots:
+            plt.savefig(filename + "_" + self.naming_timestamp + ".png", dpi=300)
         rospy.loginfo(f"{title_prefix} saved as '{filename}'.")
         plt.close(fig)
 
-    def plot_ee_data(self, timestamps: List[float], data_x: List[float], data_y: List[float], data_z: List[float], title_prefix: str, ylabel: str, filename: str) -> None:
+    def plot_ee_data(
+        self,
+        timestamps: List[float],
+        data_x: List[float],
+        data_y: List[float],
+        data_z: List[float],
+        title_prefix: str,
+        ylabel: str,
+        filename: str,
+    ) -> None:
         """
         Create a figure with 3 subplots for end-effector data (x, y, z).
-        
+
         Args:
             timestamps (List[float]): The time array
             data_x, data_y, data_z (List[float]): The data arrays for x, y, z
@@ -312,30 +332,31 @@ class JointStatePlotter:
         fig, axes = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
         fig.suptitle(title_prefix, fontsize=16)
 
-        axes[0].plot(timestamps, data_x, label='X')
-        axes[0].set_title('X')
+        axes[0].plot(timestamps, data_x, label="X")
+        axes[0].set_title("X")
         axes[0].set_ylabel(ylabel)
         axes[0].grid(True)
 
-        axes[1].plot(timestamps, data_y, label='Y')
-        axes[1].set_title('Y')
+        axes[1].plot(timestamps, data_y, label="Y")
+        axes[1].set_title("Y")
         axes[1].set_ylabel(ylabel)
         axes[1].grid(True)
 
-        axes[2].plot(timestamps, data_z, label='Z')
-        axes[2].set_title('Z')
+        axes[2].plot(timestamps, data_z, label="Z")
+        axes[2].set_title("Z")
         axes[2].set_ylabel(ylabel)
         axes[2].set_xlabel("Time (s)")
         axes[2].grid(True)
 
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-        plt.savefig(filename+ "_" + self.naming_timestamp + ".png", dpi=300)
+        if self.save_plots:
+            plt.savefig(filename + "_" + self.naming_timestamp + ".png", dpi=300)
         rospy.loginfo(f"{title_prefix} saved as '{filename}'.")
         plt.close(fig)
 
     def save_and_plot(self) -> None:
         """
-        Saves the buffered joint positions, velocities, accelerations and 
+        Saves the buffered joint positions, velocities, accelerations and
         end-effector trajectories (positions, velocities, accelerations) to separate plots.
         """
         with self.lock:
@@ -361,15 +382,67 @@ class JointStatePlotter:
             ee_ay = list(self.ee_ay)
             ee_az = list(self.ee_az)
 
+        ee_pos_data = {
+            "ee_x": ee_x,
+            "ee_y": ee_y,
+            "ee_z": ee_z,
+        }
+
+        # Save EE position data to CSV
+        self.save_ee_pos_to_csv(f"ee_positions_{self.naming_timestamp}.csv", timestamps, ee_pos_data)
+
         # Plot Joint Positions, Velocities, Accelerations (each joint in a separate subplot)
-        self.plot_joint_data(timestamps, joint_positions_data, "Joint Positions Over Time", "Position (rad)", "joint_positions_plot")
-        self.plot_joint_data(timestamps, joint_velocities_data, "Joint Velocities Over Time", "Velocity (rad/s)", "joint_velocities_plot")
-        self.plot_joint_data(timestamps, joint_accelerations_data, "Joint Accelerations Over Time", "Acceleration (rad/s^2)", "joint_accelerations_plot")
+        self.plot_joint_data(
+            timestamps, joint_positions_data, "Joint Positions Over Time", "Position (rad)", "joint_positions_plot"
+        )
+        self.plot_joint_data(
+            timestamps, joint_velocities_data, "Joint Velocities Over Time", "Velocity (rad/s)", "joint_velocities_plot"
+        )
+        self.plot_joint_data(
+            timestamps,
+            joint_accelerations_data,
+            "Joint Accelerations Over Time",
+            "Acceleration (rad/s^2)",
+            "joint_accelerations_plot",
+        )
 
         # Plot End-Effector Positions, Velocities, Accelerations (x, y, z in separate subplots)
-        self.plot_ee_data(timestamps, ee_x, ee_y, ee_z, "End-Effector Positions Over Time", "Position (m)", "ee_positions_plot")
-        self.plot_ee_data(timestamps, ee_vx, ee_vy, ee_vz, "End-Effector Velocities Over Time", "Velocity (m/s)", "ee_velocities_plot")
-        self.plot_ee_data(timestamps, ee_ax, ee_ay, ee_az, "End-Effector Accelerations Over Time", "Acceleration (m/s^2)", "ee_accelerations_plot")
+        self.plot_ee_data(
+            timestamps, ee_x, ee_y, ee_z, "End-Effector Positions Over Time", "Position (m)", "ee_positions_plot"
+        )
+        self.plot_ee_data(
+            timestamps, ee_vx, ee_vy, ee_vz, "End-Effector Velocities Over Time", "Velocity (m/s)", "ee_velocities_plot"
+        )
+        self.plot_ee_data(
+            timestamps,
+            ee_ax,
+            ee_ay,
+            ee_az,
+            "End-Effector Accelerations Over Time",
+            "Acceleration (m/s^2)",
+            "ee_accelerations_plot",
+        )
+
+    def save_ee_pos_to_csv(self, filename, timestamps, ee_pos_data):
+        """
+        Saves end-effector position data (x, y, z) to a CSV file.
+        """
+        output_dir = "output_data"
+        os.makedirs(output_dir, exist_ok=True)
+
+        filepath = os.path.join(output_dir, filename)
+
+        with open(filepath, mode="w", newline="") as file:
+            writer = csv.writer(file)
+            # Write header
+            header = ["Timestamp"] + list(ee_pos_data.keys())
+            writer.writerow(header)
+            # Write rows
+            for i in range(len(timestamps)):
+                row = [timestamps[i]] + [ee_pos_data[key][i] for key in ee_pos_data]
+                writer.writerow(row)
+
+        rospy.loginfo(f"End-effector position data saved to {filepath}")
 
 
 def main() -> None:
@@ -379,9 +452,10 @@ def main() -> None:
     """
     rospy.init_node("joint_state_plotter_node", anonymous=True)
     buffer_size = 10000
-    plot_duration = 10
+    plot_duration = 30
 
     plotter = JointStatePlotter(buffer_size=buffer_size)
+    plotter.save_plots = False
     rate = rospy.Rate(50)  # 50 Hz
     start_time = time.time()
 
