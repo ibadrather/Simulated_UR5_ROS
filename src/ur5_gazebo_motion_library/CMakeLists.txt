@@ -53,5 +53,6 @@ include_directories(
 catkin_install_python(PROGRAMS
   scripts/ur5_joint_motion_API.py
   scripts/ur5_linear_motion_API.py
+  scripts/ur5_joint_viewer.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

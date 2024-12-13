@@ -8,6 +8,7 @@ from typing import Tuple
 import kdl_parser_py.urdf
 import rospy
 from geometry_msgs.msg import Pose
+import PyKDL as KDL
 from PyKDL import ChainFkSolverPos_recursive
 from PyKDL import ChainIkSolverPos_LMA
 from PyKDL import Frame
@@ -116,6 +117,25 @@ class UR5LinearMotionAPI:
 
         for i in range(self.num_joints):
             self.joint_positions[i] = msg.position[i]
+
+        # Compute forward kinematics to get end-effector frame
+        current_frame = KDL.Frame()
+        fk_result = self.fk_solver.JntToCart(self.joint_positions, current_frame)
+
+        if fk_result >= 0:
+            position = current_frame.p  # PyKDL.Vector containing x, y, z
+            orientation = current_frame.M.GetQuaternion()  # Tuple (x, y, z, w)
+
+            # Log the end-effector position and orientation
+            # rospy.loginfo(
+            #     f"End-Effector Position: x={position.x():.3f}, y={position.y():.3f}, z={position.z():.3f}"
+            # )
+            # rospy.loginfo(
+            #     f"End-Effector Orientation: x={orientation[0]:.3f}, y={orientation[1]:.3f}, "
+            #     f"z={orientation[2]:.3f}, w={orientation[3]:.3f}"
+            # )
+        else:
+            rospy.logerr("Failed to compute forward kinematics for current joint positions.")
 
     def get_current_joint_positions(self) -> List[float]:
         """
@@ -266,5 +286,6 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
+        rospy.spin()
     except rospy.ROSInterruptException:
         rospy.loginfo("UR5LinearMotionAPI node terminated.")
