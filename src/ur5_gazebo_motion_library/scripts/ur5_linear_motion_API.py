@@ -268,8 +268,8 @@ def main() -> None:
     rospy.loginfo(f"End Pose: {end_pose}")
 
     # Define desired linear velocity and acceleration
-    linear_vel: float = 0.9  # m/s
-    linear_acc: float = 0.3  # m/s²
+    linear_vel: float = 5  # m/s
+    linear_acc: float = 1.0  # m/s²
 
     # Generate the Cartesian trajectory
     trajectory_msg: Optional[JointTrajectory] = ur5_api.generate_cartesian_trajectory(

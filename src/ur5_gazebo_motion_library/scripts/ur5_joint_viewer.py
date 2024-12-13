@@ -2,16 +2,15 @@
 
 import rospy
 from sensor_msgs.msg import JointState
-from geometry_msgs.msg import Pose
 from collections import deque
 import matplotlib.pyplot as plt
 import time
 from typing import Dict, Deque, List, Optional, Tuple
 import threading
-
+import time
 import PyKDL as KDL
 import kdl_parser_py.urdf
-
+from datetime import datetime
 # Constants
 JOINT_NAMES = [
     "shoulder_pan_joint",
@@ -29,8 +28,8 @@ END_EFFECTOR_LINK = "wrist_3_link"
 class JointStatePlotter:
     """
     A ROS node that subscribes to joint states, computes forward kinematics to obtain
-    the end-effector's pose, buffers joint positions and end-effector positions, and
-    plots the joint positions along with the end-effector's trajectory in X, Y, Z over time.
+    the end-effector's pose, buffers joint positions, velocities, accelerations and 
+    end-effector positions, velocities, accelerations, and plots them over time.
     """
 
     def __init__(self, buffer_size: int = 1000) -> None:
@@ -42,12 +41,25 @@ class JointStatePlotter:
             buffer_size (int, optional): Maximum number of data points to buffer for each joint and end-effector position. Defaults to 1000.
         """
         self.buffer_size: int = buffer_size
-        self.joint_buffers: Dict[str, Deque[float]] = {joint: deque(maxlen=self.buffer_size) for joint in JOINT_NAMES}
+        # Buffers for Joint Data
+        self.joint_positions: Dict[str, Deque[float]] = {joint: deque(maxlen=self.buffer_size) for joint in JOINT_NAMES}
+        self.joint_velocities: Dict[str, Deque[float]] = {joint: deque(maxlen=self.buffer_size) for joint in JOINT_NAMES}
+        self.joint_accelerations: Dict[str, Deque[float]] = {joint: deque(maxlen=self.buffer_size) for joint in JOINT_NAMES}
 
-        # Buffers for end-effector positions
+        # Buffers for End-Effector positions
         self.ee_x: Deque[float] = deque(maxlen=self.buffer_size)
         self.ee_y: Deque[float] = deque(maxlen=self.buffer_size)
         self.ee_z: Deque[float] = deque(maxlen=self.buffer_size)
+
+        # Buffers for End-Effector velocities
+        self.ee_vx: Deque[float] = deque(maxlen=self.buffer_size)
+        self.ee_vy: Deque[float] = deque(maxlen=self.buffer_size)
+        self.ee_vz: Deque[float] = deque(maxlen=self.buffer_size)
+
+        # Buffers for End-Effector accelerations
+        self.ee_ax: Deque[float] = deque(maxlen=self.buffer_size)
+        self.ee_ay: Deque[float] = deque(maxlen=self.buffer_size)
+        self.ee_az: Deque[float] = deque(maxlen=self.buffer_size)
 
         # Buffer for timestamps
         self.timestamps: Deque[float] = deque(maxlen=self.buffer_size)
@@ -62,6 +74,9 @@ class JointStatePlotter:
         self.fk_solver: Optional[KDL.ChainFkSolverPos_recursive] = None
         self.ik_solver: Optional[KDL.ChainIkSolverPos_LMA] = None
         self.initialize_kdl_solvers()
+
+        # Dating Timestamp
+        self.naming_timestamp = datetime.now().strftime('%y-%m-%d %a %H:%M:%S')
 
         # Initialize ROS subscriber for joint states
         rospy.Subscriber("/joint_states", JointState, self.joint_state_callback)
@@ -96,10 +111,53 @@ class JointStatePlotter:
 
         rospy.loginfo("KDL chain and solvers initialized successfully.")
 
+    def compute_derivatives(self, data: Deque[float], times: Deque[float]) -> Optional[Tuple[float, float]]:
+        """
+        Compute velocity and acceleration given a deque of data and corresponding times.
+        
+        Velocity is computed as the finite difference of the last two points.
+        Acceleration is computed as the finite difference of the last two velocities.
+        
+        Returns:
+            (velocity, acceleration) if enough data points exist, otherwise None.
+        """
+        if len(data) < 2 or len(times) < 2:
+            return None
+
+        # Compute velocity
+        pos_new = data[-1]
+        pos_old = data[-2]
+        t_new = times[-1]
+        t_old = times[-2]
+
+        dt = t_new - t_old
+        if dt <= 0:
+            return None
+
+        velocity = (pos_new - pos_old) / dt
+
+        # To compute acceleration, we need at least 3 points
+        if len(data) < 3 or len(times) < 3:
+            return velocity, None
+
+        # Velocity old (from one step before)
+        pos_old2 = data[-3]
+        t_old2 = times[-3]
+        dt2 = t_old - t_old2
+        if dt2 <= 0:
+            return velocity, None
+
+        velocity_old = (pos_old - pos_old2) / dt2
+
+        acceleration = (velocity - velocity_old) / dt
+
+        return velocity, acceleration
+
     def joint_state_callback(self, msg: JointState) -> None:
         """
         Callback function for handling incoming JointState messages. Updates joint position buffers,
-        computes the end-effector's pose using forward kinematics, and updates end-effector position buffers.
+        computes joint velocities and accelerations, computes the end-effector's pose and its velocity
+        and acceleration, and stores all data in buffers.
 
         Args:
             msg (JointState): Incoming joint state message.
@@ -109,37 +167,102 @@ class JointStatePlotter:
             return
 
         with self.lock:
-            # Create a dictionary mapping joint names to positions
-            joint_position_dict = dict(zip(msg.name, msg.position))
+            # Current time
+            current_time = time.time() - self.start_time
+            self.timestamps.append(current_time)
 
-            # Update joint position buffers
+            # Create a dictionary mapping joint names to positions, velocities, if available
+            joint_position_dict = dict(zip(msg.name, msg.position))
+            joint_velocity_dict = dict(zip(msg.name, msg.velocity)) if msg.velocity else {}
+
+            # Update joint data
             for joint_name in JOINT_NAMES:
-                if joint_name in joint_position_dict:
-                    position = joint_position_dict[joint_name]
-                    self.joint_buffers[joint_name].append(position)
+                position = joint_position_dict.get(joint_name, 0.0)
+                self.joint_positions[joint_name].append(position)
+
+                # If velocity data is available directly from the message, use it
+                # Otherwise, compute from position differences
+                if joint_name in joint_velocity_dict:
+                    vel = joint_velocity_dict[joint_name]
+                    self.joint_velocities[joint_name].append(vel)
+
+                    # Compute acceleration numerically if possible
+                    if len(self.joint_velocities[joint_name]) > 1:
+                        v_new = self.joint_velocities[joint_name][-1]
+                        v_old = self.joint_velocities[joint_name][-2]
+                        t_new = self.timestamps[-1]
+                        t_old = self.timestamps[-2] if len(self.timestamps) > 1 else None
+                        if t_old is not None:
+                            dt = t_new - t_old
+                            acc = (v_new - v_old) / dt if dt > 0 else 0.0
+                            self.joint_accelerations[joint_name].append(acc)
+                        else:
+                            self.joint_accelerations[joint_name].append(0.0)
+                    else:
+                        self.joint_accelerations[joint_name].append(0.0)
                 else:
-                    rospy.logwarn(f"Joint '{joint_name}' not found in JointState message.")
-                    self.joint_buffers[joint_name].append(0.0)  # Assign default value
+                    # Compute velocity and acceleration from position data
+                    derivatives = self.compute_derivatives(self.joint_positions[joint_name], self.timestamps)
+                    if derivatives:
+                        vel, acc = derivatives
+                        if vel is not None:
+                            self.joint_velocities[joint_name].append(vel)
+                        else:
+                            self.joint_velocities[joint_name].append(0.0)
+                        if acc is not None:
+                            self.joint_accelerations[joint_name].append(acc)
+                        else:
+                            self.joint_accelerations[joint_name].append(0.0)
+                    else:
+                        # Not enough data points yet
+                        self.joint_velocities[joint_name].append(0.0)
+                        self.joint_accelerations[joint_name].append(0.0)
 
             # Prepare KDL joint array
             joint_array = KDL.JntArray(len(JOINT_NAMES))
             for i, joint_name in enumerate(JOINT_NAMES):
-                joint_array[i] = self.joint_buffers[joint_name][-1]
+                joint_array[i] = self.joint_positions[joint_name][-1]
 
-            # Compute forward kinematics
+            # Compute forward kinematics for end-effector
             end_effector_frame = KDL.Frame()
             fk_result = self.fk_solver.JntToCart(joint_array, end_effector_frame)
             if fk_result >= 0:
                 position = end_effector_frame.p  # PyKDL.Vector
 
-                # Append to separate x, y, z buffers
                 self.ee_x.append(position.x())
                 self.ee_y.append(position.y())
                 self.ee_z.append(position.z())
 
-                # Append current timestamp
-                current_time = time.time() - self.start_time
-                self.timestamps.append(current_time)
+                # Compute end-effector velocities and accelerations
+                # Velocity and acceleration in x
+                deriv_x = self.compute_derivatives(self.ee_x, self.timestamps)
+                deriv_y = self.compute_derivatives(self.ee_y, self.timestamps)
+                deriv_z = self.compute_derivatives(self.ee_z, self.timestamps)
+
+                # For each dimension, append computed velocities and accelerations
+                if deriv_x:
+                    vx, ax = deriv_x
+                    self.ee_vx.append(vx if vx is not None else 0.0)
+                    self.ee_ax.append(ax if ax is not None else 0.0)
+                else:
+                    self.ee_vx.append(0.0)
+                    self.ee_ax.append(0.0)
+
+                if deriv_y:
+                    vy, ay = deriv_y
+                    self.ee_vy.append(vy if vy is not None else 0.0)
+                    self.ee_ay.append(ay if ay is not None else 0.0)
+                else:
+                    self.ee_vy.append(0.0)
+                    self.ee_ay.append(0.0)
+
+                if deriv_z:
+                    vz, az = deriv_z
+                    self.ee_vz.append(vz if vz is not None else 0.0)
+                    self.ee_az.append(az if az is not None else 0.0)
+                else:
+                    self.ee_vz.append(0.0)
+                    self.ee_az.append(0.0)
 
                 rospy.logdebug(
                     f"End-Effector Position: x={position.x():.3f}, y={position.y():.3f}, z={position.z():.3f}"
@@ -147,82 +270,116 @@ class JointStatePlotter:
             else:
                 rospy.logerr("Forward Kinematics computation failed.")
 
-    def save_and_plot(self, plot_duration: int = 10) -> None:
+    def plot_joint_data(self, timestamps: List[float], data_dict: Dict[str, List[float]], title_prefix: str, ylabel: str, filename: str) -> None:
         """
-        Saves the buffered joint positions and end-effector trajectories to plots.
+        Create a figure with subplots for each joint, plotting the given data (positions/velocities/accelerations).
 
         Args:
-            plot_duration (int, optional): Duration in seconds to determine how much data to plot. Defaults to 10.
+            timestamps (List[float]): The time array
+            data_dict (Dict[str, List[float]]): Dictionary of joint_name -> data array
+            title_prefix (str): Title prefix (e.g., "Joint Positions", "Joint Velocities")
+            ylabel (str): Y-axis label
+            filename (str): Filename to save the figure
+        """
+        num_joints = len(JOINT_NAMES)
+        fig, axes = plt.subplots(num_joints, 1, figsize=(8, 12), sharex=True)
+        fig.suptitle(title_prefix, fontsize=16)
+        if num_joints == 1:
+            axes = [axes]  # Ensure axes is iterable
+        for i, joint_name in enumerate(JOINT_NAMES):
+            axes[i].plot(timestamps, data_dict[joint_name], label=joint_name)
+            axes[i].set_title(joint_name)
+            axes[i].set_ylabel(ylabel)
+            axes[i].grid(True)
+        axes[-1].set_xlabel("Time (s)")
+
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.savefig(filename+ "_" + self.naming_timestamp + ".png", dpi=300)
+        rospy.loginfo(f"{title_prefix} saved as '{filename}'.")
+        plt.close(fig)
+
+    def plot_ee_data(self, timestamps: List[float], data_x: List[float], data_y: List[float], data_z: List[float], title_prefix: str, ylabel: str, filename: str) -> None:
+        """
+        Create a figure with 3 subplots for end-effector data (x, y, z).
+        
+        Args:
+            timestamps (List[float]): The time array
+            data_x, data_y, data_z (List[float]): The data arrays for x, y, z
+            title_prefix (str): Title prefix (e.g., "End-Effector Positions")
+            ylabel (str): Y-axis label
+            filename (str): Filename to save
+        """
+        fig, axes = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
+        fig.suptitle(title_prefix, fontsize=16)
+
+        axes[0].plot(timestamps, data_x, label='X')
+        axes[0].set_title('X')
+        axes[0].set_ylabel(ylabel)
+        axes[0].grid(True)
+
+        axes[1].plot(timestamps, data_y, label='Y')
+        axes[1].set_title('Y')
+        axes[1].set_ylabel(ylabel)
+        axes[1].grid(True)
+
+        axes[2].plot(timestamps, data_z, label='Z')
+        axes[2].set_title('Z')
+        axes[2].set_ylabel(ylabel)
+        axes[2].set_xlabel("Time (s)")
+        axes[2].grid(True)
+
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.savefig(filename+ "_" + self.naming_timestamp + ".png", dpi=300)
+        rospy.loginfo(f"{title_prefix} saved as '{filename}'.")
+        plt.close(fig)
+
+    def save_and_plot(self) -> None:
+        """
+        Saves the buffered joint positions, velocities, accelerations and 
+        end-effector trajectories (positions, velocities, accelerations) to separate plots.
         """
         with self.lock:
             # Convert deques to lists
             timestamps = list(self.timestamps)
-            ee_x = list(self.ee_x)
-            ee_y = list(self.ee_y)
-            ee_z = list(self.ee_z)
-
-            # Ensure all buffers have the same length
-            min_length = min(
-                len(timestamps), min(len(buf) for buf in self.joint_buffers.values()), len(ee_x), len(ee_y), len(ee_z)
-            )
-
-            if min_length == 0:
+            if len(timestamps) == 0:
                 rospy.logwarn("No data available to plot.")
                 return
 
-            # Trim all data to the minimum length
-            timestamps = timestamps[-min_length:]
-            ee_x = ee_x[-min_length:]
-            ee_y = ee_y[-min_length:]
-            ee_z = ee_z[-min_length:]
-            joint_buffers_trimmed = {joint: list(buf)[-min_length:] for joint, buf in self.joint_buffers.items()}
+            # Joint data
+            joint_positions_data = {j: list(self.joint_positions[j]) for j in JOINT_NAMES}
+            joint_velocities_data = {j: list(self.joint_velocities[j]) for j in JOINT_NAMES}
+            joint_accelerations_data = {j: list(self.joint_accelerations[j]) for j in JOINT_NAMES}
 
-        # Plot Joint Positions
-        plt.figure(figsize=(15, 10))
+            # EE data
+            ee_x = list(self.ee_x)
+            ee_y = list(self.ee_y)
+            ee_z = list(self.ee_z)
+            ee_vx = list(self.ee_vx)
+            ee_vy = list(self.ee_vy)
+            ee_vz = list(self.ee_vz)
+            ee_ax = list(self.ee_ax)
+            ee_ay = list(self.ee_ay)
+            ee_az = list(self.ee_az)
 
-        # Subplot for Joint Positions
-        plt.subplot(2, 1, 1)
-        for joint_name, buffer in joint_buffers_trimmed.items():
-            plt.plot(timestamps, buffer, label=joint_name)
-        plt.title("Joint Positions Over Time")
-        plt.xlabel("Time (s)")
-        plt.ylabel("Position (rad)")
-        plt.legend()
-        plt.grid(True)
+        # Plot Joint Positions, Velocities, Accelerations (each joint in a separate subplot)
+        self.plot_joint_data(timestamps, joint_positions_data, "Joint Positions Over Time", "Position (rad)", "joint_positions_plot")
+        self.plot_joint_data(timestamps, joint_velocities_data, "Joint Velocities Over Time", "Velocity (rad/s)", "joint_velocities_plot")
+        self.plot_joint_data(timestamps, joint_accelerations_data, "Joint Accelerations Over Time", "Acceleration (rad/s^2)", "joint_accelerations_plot")
 
-        # Subplot for End-Effector Positions Over Time
-        plt.subplot(2, 1, 2)
-        if ee_x:
-            plt.plot(timestamps, ee_x, label="X Position")
-            plt.plot(timestamps, ee_y, label="Y Position")
-            plt.plot(timestamps, ee_z, label="Z Position")
-            plt.title("End-Effector Positions Over Time")
-            plt.xlabel("Time (s)")
-            plt.ylabel("Position (meters)")
-            plt.legend()
-            plt.grid(True)
-        else:
-            plt.title("End-Effector Positions Over Time")
-            plt.text(0.5, 0.5, "No Data Available", horizontalalignment="center", verticalalignment="center")
-            plt.axis("off")
-
-        plt.tight_layout()
-        plt.savefig("joint_and_ee_positions_over_time.png", dpi=300)
-        rospy.loginfo("Plots saved as 'joint_and_ee_positions_over_time.png'.")
-        plt.show()
+        # Plot End-Effector Positions, Velocities, Accelerations (x, y, z in separate subplots)
+        self.plot_ee_data(timestamps, ee_x, ee_y, ee_z, "End-Effector Positions Over Time", "Position (m)", "ee_positions_plot")
+        self.plot_ee_data(timestamps, ee_vx, ee_vy, ee_vz, "End-Effector Velocities Over Time", "Velocity (m/s)", "ee_velocities_plot")
+        self.plot_ee_data(timestamps, ee_ax, ee_ay, ee_az, "End-Effector Accelerations Over Time", "Acceleration (m/s^2)", "ee_accelerations_plot")
 
 
 def main() -> None:
     """
     Main function to initialize the JointStatePlotter node, run it for a specified duration,
-    and then save and plot the joint positions and end-effector trajectories.
+    and then save and plot the joint positions, velocities, accelerations and end-effector trajectories.
     """
     rospy.init_node("joint_state_plotter_node", anonymous=True)
-    # buffer_size = rospy.get_param("~buffer_size", 1000)
-    # plot_duration = rospy.get_param("~plot_duration", 15)  # Duration in seconds to run the node
-
     buffer_size = 10000
-    plot_duration = 30
+    plot_duration = 10
 
     plotter = JointStatePlotter(buffer_size=buffer_size)
     rate = rospy.Rate(50)  # 50 Hz
