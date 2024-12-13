@@ -40,7 +40,7 @@ class JointStatePlotter:
         self.ax.set_title("Joint Positions Over Time")
         self.ax.set_xlabel("Time Steps")
         self.ax.set_ylabel("Position")
-        plt.savefig("joint_positions_plot.png")  # Save the plot as an image
+        plt.savefig("joint_positions_plot.png", dpi=600)  # Save the plot as an image
         plt.show()  # Display the plot
 
 
